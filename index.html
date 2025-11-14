@@ -16,24 +16,24 @@
         .app {
             max-width: 600px;
             margin: 0 auto;
-            padding: 12px 14px 20px;
+            padding: 10px 10px 18px;
         }
         .topbar {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            margin-bottom: 10px;
             gap: 6px;
+            margin-bottom: 8px;
         }
         .title {
-            font-size: 1.0rem;
+            font-size: 0.98rem;
             font-weight: 600;
             color: #ffcc33;
             text-align: center;
             flex: 1;
         }
         .topbtn {
-            font-size: 0.8rem;
+            font-size: 0.78rem;
             padding: 4px 8px;
             border-radius: 999px;
             border: none;
@@ -42,30 +42,30 @@
             color: #ffd966;
             white-space: nowrap;
         }
-        .topbtn:hover {
-            filter: brightness(1.1);
+        .topbtn:active {
+            transform: scale(0.97);
         }
         .card {
             background: #1b1b1b;
             border-radius: 10px;
-            padding: 10px 12px;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+            padding: 9px 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.35);
         }
         label {
             display: block;
-            font-size: 0.85rem;
+            font-size: 0.82rem;
             margin-bottom: 3px;
         }
         input[type="number"],
         input[type="date"] {
             width: 100%;
             box-sizing: border-box;
-            padding: 6px 8px;
+            padding: 6px 7px;
             border-radius: 6px;
             border: 1px solid #444;
             background: #111;
             color: #eee;
-            font-size: 0.95rem;
+            font-size: 0.9rem;
         }
         input[type="number"]::placeholder {
             color: #666;
@@ -75,23 +75,23 @@
             padding: 7px 12px;
             border-radius: 999px;
             border: none;
-            font-size: 0.95rem;
+            font-size: 0.9rem;
             font-weight: 600;
             cursor: pointer;
             background: #ffcc33;
             color: #000;
             width: 100%;
         }
-        button.main:hover {
-            filter: brightness(1.05);
+        button.main:active {
+            transform: scale(0.97);
         }
         .small {
-            font-size: 0.78rem;
+            font-size: 0.75rem;
             color: #aaa;
         }
         .results {
-            font-size: 0.88rem;
-            line-height: 1.4;
+            font-size: 0.86rem;
+            line-height: 1.35;
             margin-top: 8px;
         }
         .good {
@@ -111,33 +111,131 @@
             font-size: 0.78rem;
             color: #9ad0ff;
         }
+
+        /* Előzmények nézet */
+        #historyView {
+            display: none;
+        }
+        .history-header {
+            font-size: 0.85rem;
+            color: #ccc;
+            margin-bottom: 4px;
+        }
+        .history-list {
+            margin-top: 6px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            max-height: calc(100vh - 90px);
+            overflow-y: auto;
+            padding-right: 2px;
+        }
+        .history-item {
+            background: #1b1b1b;
+            border-radius: 8px;
+            padding: 7px 9px;
+            font-size: 0.8rem;
+            border-left: 3px solid #444;
+        }
+        .history-item.monthly {
+            border-left-color: #ffd966;
+        }
+        .history-item.daily {
+            border-left-color: #66c2ff;
+        }
+        .history-line1 {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 4px;
+            margin-bottom: 3px;
+        }
+        .history-date {
+            font-weight: 600;
+            font-size: 0.82rem;
+        }
+        .history-tag {
+            font-size: 0.7rem;
+            padding: 1px 6px;
+            border-radius: 999px;
+            background: #222;
+        }
+        .tag-monthly {
+            color: #ffd966;
+        }
+        .tag-daily {
+            color: #66c2ff;
+        }
+        .history-metric {
+            margin-top: 2px;
+        }
+        .muted {
+            color: #999;
+        }
+        .hist-strong {
+            font-weight: 600;
+        }
+        @media (max-width: 400px) {
+            .app {
+                padding: 8px 8px 16px;
+            }
+            .title {
+                font-size: 0.95rem;
+            }
+        }
     </style>
 </head>
 <body>
 <div class="app">
-    <div class="topbar">
-        <button class="topbtn" type="button" onclick="openMonthlyDict()">Havi diktálás</button>
-        <div class="title">Gáz keret (6–6)</div>
-        <button class="topbtn" type="button" onclick="showHistory()">Előzmények</button>
-    </div>
 
-    <div class="card">
-        <label for="readingDate">Dátum</label>
-        <input type="date" id="readingDate">
+    <!-- FŐ NÉZET -->
+    <div id="mainView">
+        <div class="topbar">
+            <button class="topbtn" type="button" onclick="openMonthlyDict()">Havi diktálás</button>
+            <div class="title">Gáz keret (6–6)</div>
+            <button class="topbtn" type="button" onclick="openHistoryView()">Előzmények</button>
+        </div>
 
-        <label for="currentReading" style="margin-top:6px;">Mai mérőállás (m³)</label>
-        <input type="number" id="currentReading" inputmode="decimal" placeholder="pl. 2258">
+        <div class="card">
+            <label for="readingDate">Dátum</label>
+            <input type="date" id="readingDate">
 
-        <button class="main" type="button" onclick="calculate()">Számolás</button>
+            <label for="currentReading" style="margin-top:6px;">Mai mérőállás (m³)</label>
+            <input type="number" id="currentReading" inputmode="decimal" placeholder="pl. 2258">
 
-        <div id="monthInfo"></div>
-        <div id="calcResult" class="results"></div>
+            <button class="main" type="button" onclick="calculate()">Számolás</button>
 
-        <div class="small" style="margin-top:6px;">
-            A „hónap” itt mindig <b>6-tól 6-ig</b> tart (pl. nov. 6 – dec. 6).
-            Az órák/nap számításhoz egy átlagos m³/óra értéket használunk.
+            <div id="monthInfo"></div>
+            <div id="calcResult" class="results"></div>
+
+            <div class="small" style="margin-top:6px;">
+                A „hónap” itt mindig <b>6-tól 6-ig</b> tart (pl. nov. 6 – dec. 6).
+                Az órák/nap számításhoz egy átlagos m³/óra értéket használunk.
+            </div>
         </div>
     </div>
+
+    <!-- ELŐZMÉNYEK NÉZET -->
+    <div id="historyView">
+        <div class="topbar">
+            <button class="topbtn" type="button" onclick="openMainView()">← Vissza</button>
+            <div class="title">Előzmények</div>
+            <div style="width:65px;"></div> <!-- helykitöltő a jobb oldalra -->
+        </div>
+
+        <div class="card">
+            <div class="history-header">
+                A legutóbbi <span class="hist-strong">Havi</span> diktálások és
+                <span class="hist-strong">Napi</span> számolások.
+            </div>
+            <div id="historyList" class="history-list"></div>
+            <div id="historyEmpty" class="small" style="display:none;margin-top:4px;">
+                Még nincs elmentett előzmény. A <b>Számolás</b> és a <b>Havi diktálás</b> gombok
+                minden futása bekerül ide.
+            </div>
+        </div>
+    </div>
+
 </div>
 
 <script>
@@ -353,7 +451,19 @@
         });
     }
 
-    // Havi diktálás: kiválasztunk egy 6-ai dátumot, megadjuk az induló mérőállást
+    // Nézet váltások
+    function openHistoryView() {
+        renderHistory();
+        document.getElementById("mainView").style.display = "none";
+        document.getElementById("historyView").style.display = "block";
+    }
+
+    function openMainView() {
+        document.getElementById("historyView").style.display = "none";
+        document.getElementById("mainView").style.display = "block";
+    }
+
+    // Havi diktálás: 6-ai dátum + mérőállás
     function openMonthlyDict() {
         const suggestion = suggestNextSixth();
         const defStr = toISODateLocal(suggestion);
@@ -414,7 +524,6 @@
             gasLabel: gasLabel
         });
 
-        // állítsuk át a dátumot is erre a 6-ára, hogy lásd
         document.getElementById("readingDate").value = toISODateLocal(dt);
         updateMonthInfo(dt);
 
@@ -585,25 +694,69 @@
         });
     }
 
-    function showHistory() {
+    function renderHistory() {
         const hist = getHistory();
+        const listEl = document.getElementById("historyList");
+        const emptyEl = document.getElementById("historyEmpty");
+
+        listEl.innerHTML = "";
+
         if (!hist.length) {
-            alert("Nincs elmentett előzmény.");
+            emptyEl.style.display = "block";
             return;
         }
+        emptyEl.style.display = "none";
 
+        // legfrissebb elöl
         hist.sort((a, b) => (b.ts || "").localeCompare(a.ts || ""));
 
-        const lines = hist.map(entry => {
+        hist.forEach(entry => {
+            const item = document.createElement("div");
+            item.classList.add("history-item");
+            if (entry.type === "monthly") item.classList.add("monthly");
+            if (entry.type === "daily") item.classList.add("daily");
+
+            const line1 = document.createElement("div");
+            line1.className = "history-line1";
+
+            const dateSpan = document.createElement("div");
+            dateSpan.className = "history-date";
+            dateSpan.textContent = entry.date || (entry.ts ? entry.ts.slice(0,10) : "");
+            line1.appendChild(dateSpan);
+
+            const tag = document.createElement("span");
+            tag.classList.add("history-tag");
             if (entry.type === "monthly") {
-                const d = entry.date || "";
-                const r = entry.reading != null ? entry.reading : "?";
-                const label = entry.gasLabel || "";
-                return "[Havi]  " + d +
-                    " · induló: " + r + " m³ · " + label;
+                tag.classList.add("tag-monthly");
+                tag.textContent = "Havi";
             } else if (entry.type === "daily") {
-                const d = entry.date || "";
-                const r = entry.reading != null ? entry.reading : "?";
+                tag.classList.add("tag-daily");
+                tag.textContent = "Napi";
+            } else {
+                tag.textContent = "Egyéb";
+            }
+            line1.appendChild(tag);
+
+            item.appendChild(line1);
+
+            const gasLabel = entry.gasLabel || "";
+
+            const line2 = document.createElement("div");
+            line2.className = "history-metric muted";
+            line2.textContent = gasLabel;
+            item.appendChild(line2);
+
+            if (entry.type === "monthly") {
+                const r = (entry.reading != null ? entry.reading : "?");
+                const q = (entry.quota != null ? entry.quota : "?");
+                const line3 = document.createElement("div");
+                line3.className = "history-metric";
+                line3.innerHTML =
+                    "Induló mérőállás: <span class='hist-strong mono'>" + r +
+                    " m³</span> · Keret: " + q + " m³";
+                item.appendChild(line3);
+            } else if (entry.type === "daily") {
+                const r = (entry.reading != null ? entry.reading : "?");
                 const c = (typeof entry.consumed === "number")
                     ? entry.consumed.toFixed(1).replace(".", ",")
                     : "?";
@@ -613,17 +766,30 @@
                 const hrs = (typeof entry.avgHoursRemaining === "number")
                     ? entry.avgHoursRemaining.toFixed(2).replace(".", ",")
                     : "?";
-                const label = entry.gasLabel || "";
-                return "[Napi] " + d +
-                    " · mérő: " + r + " m³ · fogy: " + c +
-                    " m³ · marad: " + rem + " m³ · órák/nap innentől: " +
-                    hrs + " · " + label;
-            } else {
-                return "[Ismeretlen] " + JSON.stringify(entry);
-            }
-        });
 
-        alert(lines.join("\n"));
+                const line3 = document.createElement("div");
+                line3.className = "history-metric";
+                line3.innerHTML =
+                    "Mérőállás: <span class='mono'>" + r +
+                    " m³</span> · Fogyasztás eddig: <span class='mono'>" + c + " m³</span>";
+                item.appendChild(line3);
+
+                const line4 = document.createElement("div");
+                line4.className = "history-metric";
+                line4.innerHTML =
+                    "Maradék keret: <span class='mono'>" + rem +
+                    " m³</span> · Innentől kb. <span class='mono'>" + hrs +
+                    " óra/nap</span>";
+                item.appendChild(line4);
+            } else {
+                const raw = document.createElement("div");
+                raw.className = "history-metric muted";
+                raw.textContent = JSON.stringify(entry);
+                item.appendChild(raw);
+            }
+
+            listEl.appendChild(item);
+        });
     }
 
     // induláskor
