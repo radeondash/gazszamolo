@@ -166,6 +166,7 @@
         .hist-strong {
             font-weight: 600;
         }
+
         @media (max-width: 400px) {
             .app {
                 padding: 8px 8px 16px;
@@ -256,6 +257,43 @@
     const CFG_PREFIX = "gmCfg-";
     const HIST_KEY   = "gmHistory";
 
+    // KÖZÖS ÁLLAPOT – EZ KERÜL A gaz_data.json FÁJLBA
+    let gasState = {
+        cfg: {},      // { "gmCfg-2025-11": { startReading: 2280, quota: 216 }, ... }
+        history: []   // [ {type:"daily"/"monthly", ...}, ... ]
+    };
+
+    // ====== SZERVER KOMMUNIKÁCIÓ (PHP) ===================================
+
+    async function loadAllData() {
+        try {
+            const resp = await fetch('gaz_api.php?action=load', { cache: 'no-store' });
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            const data = await resp.json();
+            gasState = {
+                cfg: data.cfg || {},
+                history: Array.isArray(data.history) ? data.history : []
+            };
+        } catch (e) {
+            console.error('Adatbetöltés hiba:', e);
+            gasState = { cfg: {}, history: [] };
+        }
+    }
+
+    async function saveAllData() {
+        try {
+            await fetch('gaz_api.php?action=save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(gasState)
+            });
+        } catch (e) {
+            console.error('Adatmentés hiba:', e);
+        }
+    }
+
+    // ====== HELYI SEGÉDFÜGGVÉNYEK (state felett) =========================
+
     function getCfgKey(year, monthIndex0) {
         const m = String(monthIndex0 + 1).padStart(2, "0");
         return CFG_PREFIX + year + "-" + m;
@@ -316,16 +354,30 @@
 
     function loadMonthConfig(year, monthIndex0) {
         const key = getCfgKey(year, monthIndex0);
-        const raw = localStorage.getItem(key);
-        if (!raw) return null;
-        try { return JSON.parse(raw); } catch { return null; }
+        return gasState.cfg[key] || null;
     }
 
     function saveMonthConfig(year, monthIndex0, startReading) {
         const key = getCfgKey(year, monthIndex0);
         const quota = monthlyQuota[monthIndex0 + 1] || 0;
-        const cfg = { startReading, quota };
-        localStorage.setItem(key, JSON.stringify(cfg));
+        gasState.cfg[key] = { startReading, quota };
+        saveAllData();
+    }
+
+    function getHistory() {
+        return gasState.history || [];
+    }
+
+    function saveHistory(arr) {
+        gasState.history = arr;
+        saveAllData();
+    }
+
+    function addHistory(entry) {
+        if (!Array.isArray(gasState.history)) gasState.history = [];
+        entry.ts = new Date().toISOString();
+        gasState.history.push(entry);
+        saveAllData();
     }
 
     function formatGasPeriodLabel(period) {
@@ -334,28 +386,6 @@
         const endLabel = period.endYear + ". " +
             monthNamesHu[period.endMonth] + " 6.";
         return startLabel + " – " + endLabel;
-    }
-
-    function getHistory() {
-        const raw = localStorage.getItem(HIST_KEY);
-        if (!raw) return [];
-        try {
-            const arr = JSON.parse(raw);
-            return Array.isArray(arr) ? arr : [];
-        } catch {
-            return [];
-        }
-    }
-
-    function saveHistory(arr) {
-        localStorage.setItem(HIST_KEY, JSON.stringify(arr));
-    }
-
-    function addHistory(entry) {
-        const arr = getHistory();
-        entry.ts = new Date().toISOString();
-        arr.push(entry);
-        saveHistory(arr);
     }
 
     function updateMonthInfo(dateObj) {
@@ -401,31 +431,10 @@
 
         for (let i = 0; i < 24; i++) {
             const key = getCfgKey(candidate.getFullYear(), candidate.getMonth());
-            if (!localStorage.getItem(key)) break;
+            if (!gasState.cfg[key]) break;
             candidate = new Date(candidate.getFullYear(), candidate.getMonth() + 1, 6);
         }
         return candidate;
-    }
-
-    function init() {
-        const initialYear = 2025;
-        const initialMonthIndex = 10; // november
-        const initialKey = getCfgKey(initialYear, initialMonthIndex);
-        if (!localStorage.getItem(initialKey)) {
-            saveMonthConfig(initialYear, initialMonthIndex, 2280);
-        }
-
-        const rd = document.getElementById("readingDate");
-        rd.value = todayISO();
-        const d = new Date(rd.value);
-        updateMonthInfo(d);
-
-        rd.addEventListener("change", function () {
-            const dt = new Date(this.value);
-            if (!isNaN(dt.getTime())) {
-                updateMonthInfo(dt);
-            }
-        });
     }
 
     function openHistoryView() {
@@ -584,7 +593,6 @@
         const remainingStr = remaining.toFixed(1).replace(".", ",");
         const avgHoursRemStr = avgHoursRemaining.toFixed(2).replace(".", ",");
 
-        // Rövid, history-stílusú kijelzés a fő oldalon
         const remLabel = remaining > 0
             ? remainingStr + " m³"
             : remainingStr + " m³ (túllépés)";
@@ -603,7 +611,6 @@
             remLabel + "</span> · Innentől kb.: <span class='mono'>" +
             hrsLabel + "</span></div>";
 
-        // napi előzmény mentése
         addHistory({
             type: "daily",
             date: dateStr,
@@ -720,7 +727,35 @@
         });
     }
 
-    init();
+    async function boot() {
+        await loadAllData();
+
+        // Beégetett induló állás 2025. november 6-ra, ha még nincs semmi config
+        const initialYear = 2025;
+        const initialMonthIndex = 10; // november
+        const initialKey = getCfgKey(initialYear, initialMonthIndex);
+        if (!gasState.cfg[initialKey]) {
+            gasState.cfg[initialKey] = {
+                startReading: 2280,
+                quota: monthlyQuota[11] || 216
+            };
+            saveAllData();
+        }
+
+        const rd = document.getElementById("readingDate");
+        rd.value = todayISO();
+        const d = new Date(rd.value);
+        updateMonthInfo(d);
+
+        rd.addEventListener("change", function () {
+            const dt = new Date(this.value);
+            if (!isNaN(dt.getTime())) {
+                updateMonthInfo(dt);
+            }
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', boot);
 </script>
 </body>
 </html>
