@@ -112,8 +112,8 @@
 <body>
 <div class="app">
     <div class="topbar">
+        <button class="topbtn" type="button" onclick="saveStartFromCurrent()">Havi állás (6.)</button>
         <div class="title">Gáz keret</div>
-        <button class="topbtn" type="button" onclick="openMonthSetup()">Havi induló állás</button>
     </div>
 
     <div class="card">
@@ -252,24 +252,46 @@
         const cfg = loadMonthConfig(period.startYear, period.startMonth);
         const gasLabel = formatGasPeriodLabel(period);
 
+        let text = "";
         if (cfg && cfg.startReading != null) {
-            infoDiv.textContent =
+            text =
                 "Gáz-hónap: " + gasLabel +
                 " · Keret: " + quota + " m³, induló állás: " +
-                cfg.startReading + " m³ ("
-                + (period.startYear) + ". " +
+                cfg.startReading + " m³ (" +
+                period.startYear + ". " +
                 monthNamesHu[period.startMonth] + ")";
         } else {
-            infoDiv.textContent =
+            text =
                 "Gáz-hónap: " + gasLabel +
                 " · Keret: " + quota +
-                " m³. Induló állás még nincs beállítva ("
-                + (period.startYear) + ". " +
+                " m³. Induló állás még nincs beállítva (" +
+                period.startYear + ". " +
                 monthNamesHu[period.startMonth] + ").";
         }
+
+        const day = dateObj.getDate();
+        if (day < 6) {
+            const daysLeft = 6 - day;
+            text += " · Leolvasásig még " + daysLeft + " nap.";
+        } else if (day === 6) {
+            text += " · Ma van a leolvasás napja.";
+        }
+
+        infoDiv.textContent = text;
     }
 
     function init() {
+        // Beégetett induló állás 2025. november 6-ra (gáz-hónap indul: 2025-11-06)
+        const initialKey = "2025-11";
+        if (!localStorage.getItem(initialKey)) {
+            const quota = monthlyQuota[11] || 0;
+            const cfg = {
+                startReading: 2280, // NOV. 6-i induló mérőállás
+                quota: quota
+            };
+            localStorage.setItem(initialKey, JSON.stringify(cfg));
+        }
+
         const rd = document.getElementById("readingDate");
         rd.value = todayISO();
         const d = new Date(rd.value);
@@ -283,7 +305,8 @@
         });
     }
 
-    function openMonthSetup() {
+    // Bal felső gomb: havi állás rögzítése, de csak 6-án
+    function saveStartFromCurrent() {
         const rdInput = document.getElementById("readingDate");
         const dateStr = rdInput.value || todayISO();
         const dt = new Date(dateStr);
@@ -292,31 +315,50 @@
             return;
         }
 
-        const period = getGasPeriod(dt);
-        const quota = monthlyQuota[period.startMonth + 1] || 0;
-        const existing = loadMonthConfig(period.startYear, period.startMonth);
-        const gasLabel = formatGasPeriodLabel(period);
-
-        let msg = "Gáz-hónap: " + gasLabel +
-            "\n(Havi keret: " + quota + " m³ – " +
-            period.startYear + ". " +
-            monthNamesHu[period.startMonth] + ")\n";
-        if (existing && existing.startReading != null) {
-            msg += "Jelenlegi induló érték: " + existing.startReading + " m³.\n\n";
-        }
-        msg += "Írd be a gáz-hónap induló mérőállását (m³):";
-
-        const input = prompt(msg, existing && existing.startReading != null ? existing.startReading : "");
-        if (input === null || input.trim() === "") return;
-
-        const val = parseFloat(input.replace(",", "."));
-        if (isNaN(val)) {
-            alert("Érvénytelen szám.");
+        const day = dt.getDate();
+        if (day !== 6) {
+            let msg = "A gáz-hónap induló állását alapvetően a leolvasás napján (6-án) érdemes rögzíteni.\n";
+            if (day < 6) {
+                const daysLeft = 6 - day;
+                msg += "Most még nincs 6-a, leolvasásig még " + daysLeft + " nap van.";
+            } else {
+                msg += "A kiválasztott dátum már 6-a után van.";
+            }
+            alert(msg);
             return;
         }
 
-        saveMonthConfig(period.startYear, period.startMonth, val);
+        const period = getGasPeriod(dt);
+        const quota = monthlyQuota[period.startMonth + 1] || 0;
+
+        let readingStr = document.getElementById("currentReading").value;
+        let startVal;
+
+        if (readingStr && readingStr.trim() !== "") {
+            startVal = parseFloat(readingStr.replace(",", "."));
+            if (isNaN(startVal)) {
+                alert("Érvénytelen szám a mérőállás mezőben.");
+                return;
+            }
+        } else {
+            const ask = prompt(
+                "Gáz-hónap: " + formatGasPeriodLabel(period) + "\n" +
+                "(" + period.startYear + ". " + monthNamesHu[period.startMonth] +
+                ", keret: " + quota + " m³)\n\n" +
+                "Írd be a leolvasott mérőállást (m³):"
+            );
+            if (ask === null || ask.trim() === "") return;
+            startVal = parseFloat(ask.replace(",", "."));
+            if (isNaN(startVal)) {
+                alert("Érvénytelen szám.");
+                return;
+            }
+        }
+
+        saveMonthConfig(period.startYear, period.startMonth, startVal);
         updateMonthInfo(dt);
+        alert("Havi induló állás rögzítve: " + startVal + " m³\n" +
+              "Gáz-hónap: " + formatGasPeriodLabel(period));
     }
 
     function calculate() {
