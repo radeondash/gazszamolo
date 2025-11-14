@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+    <meta charset="UTF-8">
+    <title>Gáz keret kalkulátor</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        :root {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+        body {
+            margin: 0;
+            background: #111;
+            color: #eee;
+        }
+        .app {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 12px 14px 20px;
+        }
+        .topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+        .title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #ffcc33;
+        }
+        .topbtn {
+            font-size: 0.8rem;
+            padding: 4px 8px;
+            border-radius: 999px;
+            border: none;
+            cursor: pointer;
+            background: #222;
+            color: #ffd966;
+        }
+        .topbtn:hover {
+            filter: brightness(1.1);
+        }
+        .card {
+            background: #1b1b1b;
+            border-radius: 10px;
+            padding: 10px 12px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+        }
+        label {
+            display: block;
+            font-size: 0.85rem;
+            margin-bottom: 3px;
+        }
+        input[type="number"],
+        input[type="date"] {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 6px 8px;
+            border-radius: 6px;
+            border: 1px solid #444;
+            background: #111;
+            color: #eee;
+            font-size: 0.95rem;
+        }
+        input[type="number"]::placeholder {
+            color: #666;
+        }
+        button.main {
+            margin-top: 8px;
+            padding: 7px 12px;
+            border-radius: 999px;
+            border: none;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            background: #ffcc33;
+            color: #000;
+            width: 100%;
+        }
+        button.main:hover {
+            filter: brightness(1.05);
+        }
+        .small {
+            font-size: 0.78rem;
+            color: #aaa;
+        }
+        .results {
+            font-size: 0.88rem;
+            line-height: 1.4;
+            margin-top: 8px;
+        }
+        .good {
+            color: #86d993;
+        }
+        .bad {
+            color: #ff8c8c;
+        }
+        .neutral {
+            color: #ffd966;
+        }
+        .mono {
+            font-family: "SF Mono", "Consolas", monospace;
+        }
+        #monthInfo {
+            margin-top: 6px;
+            font-size: 0.78rem;
+            color: #9ad0ff;
+        }
+    </style>
+</head>
+<body>
+<div class="app">
+    <div class="topbar">
+        <div class="title">Gáz keret</div>
+        <button class="topbtn" type="button" onclick="openMonthSetup()">Havi induló állás</button>
+    </div>
+
+    <div class="card">
+        <label for="readingDate">Dátum</label>
+        <input type="date" id="readingDate">
+
+        <label for="currentReading" style="margin-top:6px;">Mai mérőállás (m³)</label>
+        <input type="number" id="currentReading" inputmode="decimal" placeholder="pl. 2258">
+
+        <button class="main" type="button" onclick="calculate()">Számolás</button>
+
+        <div id="monthInfo"></div>
+        <div id="calcResult" class="results"></div>
+
+        <div class="small" style="margin-top:6px;">
+            A „hónap” itt mindig <b>6-tól 6-ig</b> tart (pl. nov. 6 – dec. 6).
+            Az órák/nap számításhoz egy átlagos m³/óra értéket használunk.
+        </div>
+    </div>
+</div>
+
+<script>
+    // ===== Saját beállítások =====
+    // Átlagos kazánfogyasztás m³/óra.
+    // Pl. október: ~100 m³ / 31 nap / 1 óra/nap ≈ 3,2 m³/óra
+    const HOURLY_USAGE = 3.2; // m³/óra – ha más, írd át
+
+    // Havi kedvezményes keretek (m³) – a hónap, amelyben a gáz-hónap INDUL
+    const monthlyQuota = {
+        1: 329,
+        2: 270,
+        3: 223,
+        4: 116,
+        5: 36,
+        6: 15,
+        7: 16,
+        8: 16,
+        9: 37,
+        10: 143,
+        11: 216,
+        12: 306
+    };
+
+    const monthNamesHu = [
+        "január", "február", "március", "április",
+        "május", "június", "július", "augusztus",
+        "szeptember", "október", "november", "december"
+    ];
+
+    function getMonthKey(year, monthIndex0) {
+        const m = String(monthIndex0 + 1).padStart(2, "0");
+        return year + "-" + m; // pl. 2025-11
+    }
+
+    function todayISO() {
+        const t = new Date();
+        const yyyy = t.getFullYear();
+        const mm = String(t.getMonth() + 1).padStart(2, "0");
+        const dd = String(t.getDate()).padStart(2, "0");
+        return yyyy + "-" + mm + "-" + dd;
+    }
+
+    // Gáz-hónap számítás: mindig hónap 6-tól következő hónap 6-ig
+    function getGasPeriod(dateObj) {
+        const d = dateObj.getDate();
+        let startYear = dateObj.getFullYear();
+        let startMonth = dateObj.getMonth(); // 0-11
+
+        if (d < 6) {
+            // Előző hónap 6-a a gáz-hónap kezdete
+            startMonth -= 1;
+            if (startMonth < 0) {
+                startMonth = 11;
+                startYear -= 1;
+            }
+        }
+        const gasStart = new Date(startYear, startMonth, 6);
+
+        let endYear = startYear;
+        let endMonth = startMonth + 1;
+        if (endMonth > 11) {
+            endMonth = 0;
+            endYear += 1;
+        }
+        const gasEnd = new Date(endYear, endMonth, 6); // kizárólagos
+
+        const totalDays = Math.round((gasEnd - gasStart) / 86400000); // 1 nap = 86400000 ms
+        const diffDays = Math.floor((dateObj - gasStart) / 86400000);
+        const daysElapsed = diffDays + 1; // 6-a = 1. nap
+
+        return {
+            gasStart,
+            gasEnd,
+            startYear,
+            startMonth,   // 0-11
+            endYear,
+            endMonth,     // 0-11
+            totalDays,
+            daysElapsed
+        };
+    }
+
+    function loadMonthConfig(year, monthIndex0) {
+        const key = getMonthKey(year, monthIndex0);
+        const raw = localStorage.getItem(key);
+        if (!raw) return null;
+        try {
+            return JSON.parse(raw);
+        } catch {
+            return null;
+        }
+    }
+
+    function saveMonthConfig(year, monthIndex0, startReading) {
+        const key = getMonthKey(year, monthIndex0);
+        const quota = monthlyQuota[monthIndex0 + 1] || 0;
+        const cfg = {
+            startReading: startReading,
+            quota: quota
+        };
+        localStorage.setItem(key, JSON.stringify(cfg));
+    }
+
+    function formatGasPeriodLabel(period) {
+        const startLabel = period.startYear + ". " +
+            monthNamesHu[period.startMonth] + " 6.";
+        const endLabel = period.endYear + ". " +
+            monthNamesHu[period.endMonth] + " 6.";
+        return startLabel + " – " + endLabel;
+    }
+
+    function updateMonthInfo(dateObj) {
+        const infoDiv = document.getElementById("monthInfo");
+        const period = getGasPeriod(dateObj);
+        const quota = monthlyQuota[period.startMonth + 1] || 0;
+        const cfg = loadMonthConfig(period.startYear, period.startMonth);
+        const gasLabel = formatGasPeriodLabel(period);
+
+        if (cfg && cfg.startReading != null) {
+            infoDiv.textContent =
+                "Gáz-hónap: " + gasLabel +
+                " · Keret: " + quota + " m³, induló állás: " +
+                cfg.startReading + " m³ ("
+                + (period.startYear) + ". " +
+                monthNamesHu[period.startMonth] + ")";
+        } else {
+            infoDiv.textContent =
+                "Gáz-hónap: " + gasLabel +
+                " · Keret: " + quota +
+                " m³. Induló állás még nincs beállítva ("
+                + (period.startYear) + ". " +
+                monthNamesHu[period.startMonth] + ").";
+        }
+    }
+
+    function init() {
+        const rd = document.getElementById("readingDate");
+        rd.value = todayISO();
+        const d = new Date(rd.value);
+        updateMonthInfo(d);
+
+        rd.addEventListener("change", function () {
+            const dt = new Date(this.value);
+            if (!isNaN(dt.getTime())) {
+                updateMonthInfo(dt);
+            }
+        });
+    }
+
+    function openMonthSetup() {
+        const rdInput = document.getElementById("readingDate");
+        const dateStr = rdInput.value || todayISO();
+        const dt = new Date(dateStr);
+        if (isNaN(dt.getTime())) {
+            alert("Érvénytelen dátum.");
+            return;
+        }
+
+        const period = getGasPeriod(dt);
+        const quota = monthlyQuota[period.startMonth + 1] || 0;
+        const existing = loadMonthConfig(period.startYear, period.startMonth);
+        const gasLabel = formatGasPeriodLabel(period);
+
+        let msg = "Gáz-hónap: " + gasLabel +
+            "\n(Havi keret: " + quota + " m³ – " +
+            period.startYear + ". " +
+            monthNamesHu[period.startMonth] + ")\n";
+        if (existing && existing.startReading != null) {
+            msg += "Jelenlegi induló érték: " + existing.startReading + " m³.\n\n";
+        }
+        msg += "Írd be a gáz-hónap induló mérőállását (m³):";
+
+        const input = prompt(msg, existing && existing.startReading != null ? existing.startReading : "");
+        if (input === null || input.trim() === "") return;
+
+        const val = parseFloat(input.replace(",", "."));
+        if (isNaN(val)) {
+            alert("Érvénytelen szám.");
+            return;
+        }
+
+        saveMonthConfig(period.startYear, period.startMonth, val);
+        updateMonthInfo(dt);
+    }
+
+    function calculate() {
+        const dateStr = document.getElementById("readingDate").value;
+        const readingStr = document.getElementById("currentReading").value;
+        const resultDiv = document.getElementById("calcResult");
+
+        if (!dateStr || !readingStr) {
+            alert("Add meg a dátumot és a mai mérőállást.");
+            return;
+        }
+
+        const dt = new Date(dateStr);
+        if (isNaN(dt.getTime())) {
+            alert("Érvénytelen dátum.");
+            return;
+        }
+
+        const period = getGasPeriod(dt);
+        const quota = monthlyQuota[period.startMonth + 1] || 0;
+        const daysInGasMonth = period.totalDays;  // 6–6 közti napok száma
+        const daysElapsed = period.daysElapsed;   // hanyadik napja a gáz-hónapnak
+
+        let cfg = loadMonthConfig(period.startYear, period.startMonth);
+        let startReading = cfg && cfg.startReading != null ? cfg.startReading : null;
+
+        if (startReading == null || isNaN(startReading)) {
+            const ask = prompt(
+                "Nincs beállítva induló mérőállás ehhez a gáz-hónaphoz:\n" +
+                formatGasPeriodLabel(period) + "\n" +
+                "(" + period.startYear + ". " +
+                monthNamesHu[period.startMonth] + ", keret: " +
+                quota + " m³)\n\nAdd meg most (m³):"
+            );
+            if (ask === null || ask.trim() === "") {
+                resultDiv.textContent = "Nincs induló mérőállás, megszakítva.";
+                return;
+            }
+            startReading = parseFloat(ask.replace(",", "."));
+            if (isNaN(startReading)) {
+                alert("Érvénytelen szám.");
+                return;
+            }
+            saveMonthConfig(period.startYear, period.startMonth, startReading);
+            cfg = loadMonthConfig(period.startYear, period.startMonth);
+            updateMonthInfo(dt);
+        }
+
+        let currentReading = parseFloat(readingStr.replace(",", "."));
+        if (isNaN(currentReading)) {
+            alert("Érvénytelen szám a mai mérőállásnál.");
+            return;
+        }
+
+        if (currentReading < startReading) {
+            alert("A mai mérőállás nem lehet kisebb, mint a gáz-hónap induló mérőállása.");
+            return;
+        }
+
+        const consumedSoFar = currentReading - startReading;
+        const dailyQuota = quota / daysInGasMonth;
+        const allowedSoFar = dailyQuota * daysElapsed;
+        const remaining = quota - consumedSoFar;
+        const daysLeft = daysInGasMonth - daysElapsed;
+
+        // Órák számítása
+        const avgHoursFullMonth = dailyQuota / HOURLY_USAGE; // átlagos óraszám/nap a teljes gáz-hónapra
+        let avgHoursRemaining = 0;
+        if (daysLeft > 0 && remaining > 0) {
+            avgHoursRemaining = (remaining / daysLeft) / HOURLY_USAGE;
+        }
+
+        // Ideális mai óraállás (m³) a gáz-hónap alapján
+        const idealMeterToday = startReading + allowedSoFar;
+
+        // Stringek
+        const consumedStr = consumedSoFar.toFixed(1).replace(".", ",");
+        const quotaStr = quota.toString();
+        const dailyStr = dailyQuota.toFixed(1).replace(".", ",");
+        const allowedStr = allowedSoFar.toFixed(1).replace(".", ",");
+        const idealMeterStr = Math.round(idealMeterToday).toString();
+        const currentMeterStr = currentReading.toString();
+        const remainingStr = remaining.toFixed(1).replace(".", ",");
+
+        const avgHoursFullStr = avgHoursFullMonth.toFixed(2).replace(".", ",");
+        const avgHoursRemStr = avgHoursRemaining.toFixed(2).replace(".", ",");
+
+        let diff = consumedSoFar - allowedSoFar;
+        let diffText, diffClass;
+        if (Math.abs(diff) < 0.1) {
+            diffText = "Körülbelül pont a tervezett napi átlagos pályán vagy.";
+            diffClass = "neutral";
+        } else if (diff > 0) {
+            diffText = "A gáz-hónap átlagához képest kb. +" +
+                diff.toFixed(1).replace(".", ",") + " m³-rel többet fogyasztottál.";
+            diffClass = "bad";
+        } else {
+            diffText = "A gáz-hónap átlagához képest kb. " +
+                diff.toFixed(1).replace(".", ",") + " m³ tartalékod van.";
+            diffClass = "good";
+        }
+
+        let remainingText;
+        if (remaining > 0) {
+            remainingText = "A kedvezményes keretből még kb. " +
+                remainingStr + " m³ maradt ebben a gáz-hónapban.";
+        } else {
+            const over = Math.abs(remaining).toFixed(1).replace(".", ",");
+            remainingText = "A kedvezményes keretet már kb. " +
+                over + " m³-rel túllépted ebben a gáz-hónapban.";
+        }
+
+        let hoursText = "";
+        hoursText += "Elméleti átlagos üzemidő a teljes gáz-hónapra: kb. " +
+            avgHoursFullStr + " óra/nap (a " + dailyStr +
+            " m³/nap keret és " + HOURLY_USAGE +
+            " m³/óra fogyasztás mellett).";
+
+        if (daysLeft > 0 && remaining > 0) {
+            hoursText += "<br>Innentől a gáz-hónap végéig átlagosan kb. " +
+                avgHoursRemStr + " óra/nap fér bele, ha a kereten belül akarsz maradni.";
+        }
+
+        const gasLabel = formatGasPeriodLabel(period);
+
+        resultDiv.innerHTML =
+            "<div class='mono'>Dátum: " + dateStr +
+            " · Gáz-hónap: " + gasLabel +
+            " · Keret: " + quotaStr + " m³</div>" +
+            "<div style='margin-top:4px;'>Induló mérőállás (gáz-hónap elején): <span class='mono'>" +
+            startReading + " m³</span></div>" +
+            "<div>Mai mérőállás: <span class='mono'>" + currentMeterStr + " m³</span></div>" +
+            "<div style='margin-top:4px;'>Eddigi fogyasztás ebben a gáz-hónapban: <b>" +
+            consumedStr + " m³</b></div>" +
+            "<div>Napi átlagos megengedett fogyasztás: <b>" + dailyStr + " m³/nap</b></div>" +
+            "<div>Eddig megengedett fogyasztás (a gáz-hónap " + daysElapsed +
+            ". napjáig): <b>" + allowedStr + " m³</b></div>" +
+            "<div style='margin-top:4px;'>Ideális mai óraállás: <span class='mono'><b>" +
+            idealMeterStr + " m³</b></span></div>" +
+            "<div>Mostani óraállás: <span class='mono'><b>" +
+            currentMeterStr + " m³</b></span></div>" +
+            "<div style='margin-top:4px;' class='" + diffClass + "'>" + diffText + "</div>" +
+            "<div class='neutral' style='margin-top:4px;'>" + remainingText + "</div>" +
+            "<div class='small' style='margin-top:4px;'>" + hoursText + "</div>";
+    }
+
+    // induláskor
+    init();
+</script>
+</body>
+</html>
